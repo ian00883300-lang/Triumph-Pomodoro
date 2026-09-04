@@ -8,6 +8,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#faf9f6" id="theme-color-meta">
+    <meta name="description" content="A focused Pomodoro timer designed for iPhone and iPad.">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+    <link rel="manifest" href="site.webmanifest">
     <title>Triumph Pomodoro</title>
     <style>
         /* 全域防爆邊尺寸標準化 */
@@ -430,7 +434,7 @@
             <div class="audio-settings">
                 <button class="btn-mini" id="toggle-sound">✈️ 客艙廣播 (I)</button>
                 <button class="btn-mini" id="vol-down">－</button>
-                <span id="vol-text">Vol: 40%</span>
+                <span id="vol-text">Vol: 55%</span>
                 <button class="btn-mini" id="vol-up">＋</button>
             </div>
             <div class="theme-selector">
@@ -503,6 +507,7 @@
     let mobileAlarmAudio = null;
     let mobileAlarmUrl = null;
     let mobileAlarmSoundType = null;
+    let mobilePreviewTimeout = null;
     let wakeLock = null;
     let alarmInterval = null;
     let alarmTimeout = null;
@@ -511,7 +516,7 @@
     let pipWindow = null;
     let currentTheme = 'white';
     
-    let volumeLevel = 0.4; 
+    let volumeLevel = 0.55;
     let soundType = 'aviation1';  
     const isAppleTouchDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -732,6 +737,7 @@
         const sampleCount = Math.ceil(pattern.duration * sampleRate);
         const buffer = new ArrayBuffer(44 + sampleCount * 2);
         const view = new DataView(buffer);
+        const samples = new Float32Array(sampleCount);
 
         const writeText = (offset, value) => {
             for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
@@ -751,6 +757,7 @@
         writeText(36, 'data');
         view.setUint32(40, sampleCount * 2, true);
 
+        let peak = 0;
         for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
             const absoluteTime = sampleIndex / sampleRate;
             let sample = 0;
@@ -771,7 +778,14 @@
                 sample += wave * tone.gain * envelope;
             });
 
-            const normalized = Math.max(-1, Math.min(1, sample * 0.62));
+            samples[sampleIndex] = sample;
+            peak = Math.max(peak, Math.abs(sample));
+        }
+
+        // 將每一種提示音正規化到相同峰值，避免切換音效後忽大忽小。
+        const normalizationGain = peak > 0 ? 0.92 / peak : 1;
+        for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+            const normalized = Math.max(-1, Math.min(1, samples[sampleIndex] * normalizationGain));
             view.setInt16(44 + sampleIndex * 2, normalized * 0x7fff, true);
         }
 
@@ -785,6 +799,7 @@
             mobileAlarmAudio = document.createElement('audio');
             mobileAlarmAudio.preload = 'auto';
             mobileAlarmAudio.setAttribute('playsinline', '');
+            mobileAlarmAudio.setAttribute('webkit-playsinline', '');
             mobileAlarmAudio.setAttribute('aria-hidden', 'true');
             mobileAlarmAudio.style.display = 'none';
             document.body.appendChild(mobileAlarmAudio);
@@ -807,17 +822,23 @@
         if (!prepareMobileAlarm() || volumeLevel <= 0) return false;
 
         try {
+            if (mobilePreviewTimeout) {
+                clearTimeout(mobilePreviewTimeout);
+                mobilePreviewTimeout = null;
+            }
             mobileAlarmAudio.pause();
             mobileAlarmAudio.currentTime = 0;
+            mobileAlarmAudio.muted = false;
             mobileAlarmAudio.volume = volumeLevel;
             await mobileAlarmAudio.play();
 
             if (previewDuration > 0) {
-                setTimeout(() => {
+                mobilePreviewTimeout = setTimeout(() => {
                     if (!isRinging && mobileAlarmAudio) {
                         mobileAlarmAudio.pause();
                         mobileAlarmAudio.currentTime = 0;
                     }
+                    mobilePreviewTimeout = null;
                 }, previewDuration);
             }
             return true;
@@ -1015,6 +1036,7 @@
     function stopAlarmLoop() {
         if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
         if (alarmTimeout) { clearTimeout(alarmTimeout); alarmTimeout = null; }
+        if (mobilePreviewTimeout) { clearTimeout(mobilePreviewTimeout); mobilePreviewTimeout = null; }
         if (mobileAlarmAudio) {
             mobileAlarmAudio.pause();
             mobileAlarmAudio.currentTime = 0;
@@ -1238,7 +1260,7 @@
         let nextIndex = (keys.indexOf(soundType) + 1) % keys.length;
         soundType = keys[nextIndex];
         if (soundToggleBtn) soundToggleBtn.textContent = soundNames[soundType];
-        await triggerChime({ previewDuration: isAppleTouchDevice ? 900 : 0, announce: true });
+        await triggerChime({ previewDuration: 0, announce: true });
     });
 
     safeBind('vol-up', 'click', async (e) => {
