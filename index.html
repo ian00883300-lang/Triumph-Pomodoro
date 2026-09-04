@@ -117,6 +117,16 @@
             color: var(--text-muted);
         }
 
+        .audio-status {
+            min-height: 1rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            line-height: 1.35;
+            text-align: left;
+        }
+
+        .audio-status.error { color: #e11d48; }
+
         .btn-mini {
             background: transparent;
             border: 1px solid var(--border-color);
@@ -440,6 +450,7 @@
                 Loop: 1 / --
             </div>
         </div>
+        <div class="audio-status" id="audio-status" aria-live="polite">🔊 點音效按鈕可立即試聽</div>
     </div>
 
     <div class="config-tabs">
@@ -489,6 +500,10 @@
     
     let timerId = null;
     let audioCtx = null;
+    let mobileAlarmAudio = null;
+    let mobileAlarmUrl = null;
+    let mobileAlarmSoundType = null;
+    let wakeLock = null;
     let alarmInterval = null;
     let alarmTimeout = null;
     let isRinging = false;
@@ -498,6 +513,8 @@
     
     let volumeLevel = 0.4; 
     let soundType = 'aviation1';  
+    const isAppleTouchDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const soundNames = {
         'chime': '🎵 經典和弦',
         'aviation1': '✈️ 客艙廣播 (I)',
@@ -524,6 +541,7 @@
     const lblBTime = document.getElementById('lbl-b-time');
     const soundToggleBtn = document.getElementById('toggle-sound');
     const volText = document.getElementById('vol-text');
+    const audioStatus = document.getElementById('audio-status');
     const pipControl = document.getElementById('pip-control');
     const themeColorMeta = document.getElementById('theme-color-meta');
 
@@ -635,21 +653,243 @@
         } catch(e){}
     }
 
-    function initAudio() {
-        try {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx && audioCtx.state === 'suspended') { 
-                audioCtx.resume(); 
-            }
-        } catch (e) { console.error("Audio system init error:", e); }
+    function showAudioStatus(message, isError = false) {
+        if (!audioStatus) return;
+        audioStatus.textContent = message;
+        audioStatus.classList.toggle('error', isError);
     }
 
-    function triggerChime() {
+    function getMobileSoundPattern(type) {
+        const patterns = {
+            chime: {
+                duration: 2.1,
+                tones: [
+                    { frequency: 523.25, start: 0, duration: 1.6, gain: 0.8 },
+                    { frequency: 659.25, start: 0.1, duration: 2.0, gain: 0.5 }
+                ]
+            },
+            aviation1: {
+                duration: 2.9,
+                tones: [
+                    { frequency: 554.37, start: 0, duration: 2.2, gain: 0.8 },
+                    { frequency: 440, start: 0.32, duration: 2.45, gain: 0.9 }
+                ]
+            },
+            aviation2: {
+                duration: 2.0,
+                tones: [
+                    { frequency: 587.33, start: 0, duration: 0.8, gain: 0.85 },
+                    { frequency: 493.88, start: 0.15, duration: 1.05, gain: 0.75 },
+                    { frequency: 587.33, start: 0.6, duration: 0.8, gain: 0.85 },
+                    { frequency: 493.88, start: 0.75, duration: 1.05, gain: 0.75 }
+                ]
+            },
+            aviation3: {
+                duration: 3.1,
+                tones: [
+                    { frequency: 349.23, start: 0, duration: 3.0, gain: 0.62 },
+                    { frequency: 440, start: 0, duration: 3.0, gain: 0.62 }
+                ]
+            },
+            aviation4: {
+                duration: 2.6,
+                tones: [349.23, 440, 523.25, 698.46].map((frequency, index) => ({
+                    frequency,
+                    start: index * 0.22,
+                    duration: 1.8,
+                    gain: 0.72
+                }))
+            },
+            aviation5: {
+                duration: 0.7,
+                tones: [
+                    { frequency: 880, start: 0, duration: 0.18, gain: 0.85 },
+                    { frequency: 880, start: 0.25, duration: 0.18, gain: 0.85 }
+                ]
+            },
+            aviation6: {
+                duration: 1.9,
+                tones: [
+                    { frequency: 659.25, start: 0, duration: 1.2, gain: 0.75 },
+                    { frequency: 523.25, start: 0.2, duration: 1.5, gain: 0.75 }
+                ]
+            },
+            aviation7: {
+                duration: 3.6,
+                tones: [
+                    { frequency: 220, start: 0, duration: 3.5, gain: 0.55 },
+                    { frequency: 222, start: 0, duration: 3.5, gain: 0.18, wave: 'triangle' },
+                    { frequency: 440, start: 0, duration: 3.5, gain: 0.5 }
+                ]
+            }
+        };
+        return patterns[type] || patterns.aviation1;
+    }
+
+    function createMobileAlarmUrl(type) {
+        const pattern = getMobileSoundPattern(type);
+        const sampleRate = 22050;
+        const sampleCount = Math.ceil(pattern.duration * sampleRate);
+        const buffer = new ArrayBuffer(44 + sampleCount * 2);
+        const view = new DataView(buffer);
+
+        const writeText = (offset, value) => {
+            for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+        };
+
+        writeText(0, 'RIFF');
+        view.setUint32(4, 36 + sampleCount * 2, true);
+        writeText(8, 'WAVE');
+        writeText(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeText(36, 'data');
+        view.setUint32(40, sampleCount * 2, true);
+
+        for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+            const absoluteTime = sampleIndex / sampleRate;
+            let sample = 0;
+
+            pattern.tones.forEach(tone => {
+                const localTime = absoluteTime - tone.start;
+                if (localTime < 0 || localTime > tone.duration) return;
+
+                const attack = Math.min(0.045, tone.duration * 0.25);
+                const progress = Math.max(0, (localTime - attack) / Math.max(0.01, tone.duration - attack));
+                const envelope = localTime < attack
+                    ? localTime / Math.max(0.001, attack)
+                    : Math.pow(1 - progress, 2.4);
+                const phase = 2 * Math.PI * tone.frequency * localTime;
+                const wave = tone.wave === 'triangle'
+                    ? (2 / Math.PI) * Math.asin(Math.sin(phase))
+                    : Math.sin(phase);
+                sample += wave * tone.gain * envelope;
+            });
+
+            const normalized = Math.max(-1, Math.min(1, sample * 0.62));
+            view.setInt16(44 + sampleIndex * 2, normalized * 0x7fff, true);
+        }
+
+        return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+    }
+
+    function prepareMobileAlarm() {
+        if (!isAppleTouchDevice || typeof Audio === 'undefined') return false;
+
+        if (!mobileAlarmAudio) {
+            mobileAlarmAudio = document.createElement('audio');
+            mobileAlarmAudio.preload = 'auto';
+            mobileAlarmAudio.setAttribute('playsinline', '');
+            mobileAlarmAudio.setAttribute('aria-hidden', 'true');
+            mobileAlarmAudio.style.display = 'none';
+            document.body.appendChild(mobileAlarmAudio);
+        }
+
+        if (mobileAlarmSoundType !== soundType) {
+            mobileAlarmAudio.pause();
+            if (mobileAlarmUrl) URL.revokeObjectURL(mobileAlarmUrl);
+            mobileAlarmUrl = createMobileAlarmUrl(soundType);
+            mobileAlarmSoundType = soundType;
+            mobileAlarmAudio.src = mobileAlarmUrl;
+            mobileAlarmAudio.load();
+        }
+
+        mobileAlarmAudio.volume = volumeLevel;
+        return true;
+    }
+
+    async function playMobileAlarm(previewDuration = 0) {
+        if (!prepareMobileAlarm() || volumeLevel <= 0) return false;
+
         try {
-            initAudio();
-            if (!audioCtx || volumeLevel <= 0) return; 
+            mobileAlarmAudio.pause();
+            mobileAlarmAudio.currentTime = 0;
+            mobileAlarmAudio.volume = volumeLevel;
+            await mobileAlarmAudio.play();
+
+            if (previewDuration > 0) {
+                setTimeout(() => {
+                    if (!isRinging && mobileAlarmAudio) {
+                        mobileAlarmAudio.pause();
+                        mobileAlarmAudio.currentTime = 0;
+                    }
+                }, previewDuration);
+            }
+            return true;
+        } catch (error) {
+            console.error('Mobile audio playback error:', error);
+            return false;
+        }
+    }
+
+    async function requestWakeLock() {
+        if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+        try {
+            if (!wakeLock) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => { wakeLock = null; });
+            }
+        } catch (error) {
+            console.info('Screen wake lock unavailable:', error);
+        }
+    }
+
+    function releaseWakeLock() {
+        if (!wakeLock) return;
+        const activeWakeLock = wakeLock;
+        wakeLock = null;
+        activeWakeLock.release().catch(() => {});
+    }
+
+    async function initAudio() {
+        try {
+            if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return false;
+                audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+            }
+            if (audioCtx && audioCtx.state !== 'running') {
+                await audioCtx.resume();
+            }
+            return audioCtx && audioCtx.state === 'running';
+        } catch (e) {
+            console.error("Audio system init error:", e);
+            return false;
+        }
+    }
+
+    async function triggerChime(options = {}) {
+        const previewDuration = options.previewDuration || 0;
+        const announce = options.announce === true;
+        try {
+            if (volumeLevel <= 0) {
+                if (announce) showAudioStatus('🔇 目前為靜音，請先提高音量', true);
+                return false;
+            }
+
+            if (isAppleTouchDevice) {
+                if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
+                const played = await playMobileAlarm(previewDuration);
+                if (announce) {
+                    showAudioStatus(
+                        played ? '🔊 聲音已啟用' : '無法播放，請提高媒體音量後再試一次',
+                        !played
+                    );
+                }
+                return played;
+            }
+
+            const ready = await initAudio();
+            if (!ready || !audioCtx) {
+                if (announce) showAudioStatus('無法啟用聲音，請再點一次音效按鈕', true);
+                return false;
+            }
             
             const now = audioCtx.currentTime;
             
@@ -747,7 +987,13 @@
                     o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 3.5);
                 });
             }
-        } catch (e) { console.error("Audio trigger exception:", e); }
+            if (announce) showAudioStatus('🔊 聲音已啟用');
+            return true;
+        } catch (e) {
+            console.error("Audio trigger exception:", e);
+            if (announce) showAudioStatus('無法啟用聲音，請再點一次音效按鈕', true);
+            return false;
+        }
     }
 
     function startAlarmLoop(phase) {
@@ -769,6 +1015,10 @@
     function stopAlarmLoop() {
         if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
         if (alarmTimeout) { clearTimeout(alarmTimeout); alarmTimeout = null; }
+        if (mobileAlarmAudio) {
+            mobileAlarmAudio.pause();
+            mobileAlarmAudio.currentTime = 0;
+        }
     }
 
     // 重構解除警報機制：確保跨視窗（PiP）觸發時能自動重啟計時核心
@@ -793,6 +1043,7 @@
                 if (tabBreak) tabBreak.className = 'btn-tab';
                 currentRound = 1;
                 if (statusText) statusText.textContent = 'ALL SETS FINISHED';
+                releaseWakeLock();
                 updateDisplay();
                 ringingPhase = null;
                 return;
@@ -818,6 +1069,7 @@
     function autoStartTimer() {
         if (timerId !== null) clearInterval(timerId);
         if (display) display.classList.add('running');
+        requestWakeLock();
         startTime = Date.now();
         initialTimeLeft = timeLeft;
 
@@ -980,31 +1232,30 @@
         updateDisplay();
     });
 
-    safeBind('toggle-sound', 'click', (e) => {
+    safeBind('toggle-sound', 'click', async (e) => {
         e.stopPropagation();
-        initAudio();
         const keys = Object.keys(soundNames);
         let nextIndex = (keys.indexOf(soundType) + 1) % keys.length;
         soundType = keys[nextIndex];
         if (soundToggleBtn) soundToggleBtn.textContent = soundNames[soundType];
-        triggerChime(); 
+        await triggerChime({ previewDuration: isAppleTouchDevice ? 900 : 0, announce: true });
     });
 
-    safeBind('vol-up', 'click', (e) => {
+    safeBind('vol-up', 'click', async (e) => {
         e.stopPropagation();
         if (volumeLevel < 1.0) {
             volumeLevel = Math.min(1.0, volumeLevel + 0.1);
             if (volText) volText.textContent = `Vol: ${Math.round(volumeLevel * 100)}%`;
-            triggerChime();
+            await triggerChime({ previewDuration: isAppleTouchDevice ? 500 : 0, announce: true });
         }
     });
 
-    safeBind('vol-down', 'click', (e) => {
+    safeBind('vol-down', 'click', async (e) => {
         e.stopPropagation();
         if (volumeLevel > 0.0) {
             volumeLevel = Math.max(0.0, volumeLevel - 0.1);
             if (volText) volText.textContent = volumeLevel <= 0 ? "Vol: MUTE" : `Vol: ${Math.round(volumeLevel * 100)}%`;
-            triggerChime();
+            await triggerChime({ previewDuration: isAppleTouchDevice ? 500 : 0, announce: true });
         }
     });
 
@@ -1023,10 +1274,17 @@
         });
     });
 
-    safeBind('start', 'click', (e) => {
+    safeBind('start', 'click', async (e) => {
         e.stopPropagation();
-        initAudio();
         if (isRinging) { handleDismiss(); return; }
+
+        requestWakeLock();
+        if (isAppleTouchDevice) {
+            await triggerChime({ previewDuration: 180, announce: true });
+        } else {
+            const ready = await initAudio();
+            showAudioStatus(ready ? '🔊 聲音已啟用' : '無法啟用聲音，請再點一次開始', !ready);
+        }
         
         if (timerId === null && timeLeft > 0) {
             autoStartTimer();
@@ -1042,6 +1300,7 @@
             timerId = null;
             if (display) display.classList.remove('running');
             if (statusText) statusText.textContent = 'PAUSED';
+            releaseWakeLock();
             updateDisplay();
         }
     });
@@ -1059,6 +1318,7 @@
         timeLeft = focusDefaultTime;
         if (display) display.classList.remove('running');
         if (statusText) statusText.textContent = 'READY (FOCUS)';
+        releaseWakeLock();
         updateDisplay();
     });
 
@@ -1074,7 +1334,10 @@
     }
 
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') syncTimerFromClock();
+        if (document.visibilityState === 'visible') {
+            syncTimerFromClock();
+            if (timerId !== null || isRinging) requestWakeLock();
+        }
     });
 
     updateDisplay();
