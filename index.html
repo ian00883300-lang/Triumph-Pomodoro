@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="application-name" content="Triumph Pomodoro">
+    <meta name="apple-mobile-web-app-title" content="Triumph Pomodoro">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#faf9f6" id="theme-color-meta">
+    <title>Triumph Pomodoro</title>
+    <style>
+        /* 全域防爆邊尺寸標準化 */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* 三大奢華工藝主題變數 */
+        body.theme-white {
+            --bg-color: #faf9f6;
+            --card-bg: #ffffff;
+            --text-main: #1c1917;
+            --text-muted: #78716c;
+            --border-color: #e7e5e4;
+            --focus-accent: #f97316;
+            --break-accent: #10b981;
+        }
+        body.theme-gray {
+            --bg-color: #3f3f46;
+            --card-bg: #27272a;
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --border-color: #52525b;
+            --focus-accent: #fb923c;
+            --break-accent: #34d399;
+        }
+        body.theme-black {
+            --bg-color: #09090b;
+            --card-bg: #18181b;
+            --text-main: #ffffff;
+            --text-muted: #71717a;
+            --border-color: #27272a;
+            --focus-accent: #ea580c;
+            --break-accent: #059669;
+        }
+
+        html, body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            height: 100%;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding:
+                max(40px, env(safe-area-inset-top))
+                max(20px, env(safe-area-inset-right))
+                max(40px, env(safe-area-inset-bottom))
+                max(20px, env(safe-area-inset-left));
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+            transition: background-color 0.4s ease, color 0.4s ease;
+            overflow-x: hidden;
+        }
+
+        .wrapper {
+            background: var(--card-bg);
+            padding: 35px 40px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 50px rgba(28, 25, 23, 0.02);
+            text-align: center;
+            width: min(100%, 400px);
+            max-width: 100%;
+            transition: background-color 0.4s ease, border-color 0.4s ease;
+        }
+
+        button {
+            font: inherit;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 頂部整合控制面板 */
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 15px;
+        }
+        .panel-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .audio-settings, .loop-settings {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .btn-mini {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 3px 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.72rem;
+            transition: all 0.2s;
+        }
+        .btn-mini:hover { color: var(--text-main); border-color: var(--text-muted); }
+
+        .theme-selector { display: flex; gap: 4px; }
+        .btn-theme-dot {
+            border: 1px solid var(--border-color);
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            border-radius: 5px;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+        }
+        body.theme-white .btn-theme-dot[data-theme="white"],
+        body.theme-gray .btn-theme-dot[data-theme="gray"],
+        body.theme-black .btn-theme-dot[data-theme="black"] {
+            background-color: var(--text-main);
+            color: var(--card-bg);
+            border-color: var(--text-main);
+        }
+
+        /* 雙軌設定切換艙 */
+        .config-tabs {
+            display: flex;
+            background: var(--bg-color);
+            padding: 3px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .btn-tab {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.25s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-tab.active-focus {
+            background: var(--card-bg);
+            color: var(--focus-accent);
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.08);
+        }
+        .btn-tab.active-break {
+            background: var(--card-bg);
+            color: var(--break-accent);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+        }
+
+        /* 時間微調矩陣 */
+        .adjust-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 25px;
+        }
+        .btn-time {
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-time:hover { color: var(--text-main); border-color: var(--text-muted); }
+
+        .status-indicator {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .time-display {
+            font-size: 5.8rem;
+            font-weight: 300; 
+            color: var(--text-main);
+            margin: 0;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -2px;
+            line-height: 1;
+            transition: font-weight 0.2s ease;
+        }
+        .time-display.running { font-weight: 700; }
+
+        /* 動態雙色進度條 */
+        .progress-container {
+            width: 100%;
+            background-color: var(--border-color);
+            height: 3px;
+            border-radius: 2px;
+            margin: 22px 0 25px 0;
+            overflow: visible; 
+        }
+        .progress-bar {
+            width: 100%;
+            height: 100%;
+            background-color: var(--focus-accent);
+            transition: width 0.25s linear, background-color 0.3s;
+            position: relative;
+        }
+        /* 主視窗飛機外掛 */
+        .progress-bar::after {
+            content: '✈️';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%) scaleX(-1); 
+            font-size: 14px;
+            line-height: 1;
+            z-index: 10;
+        }
+
+        .control-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+        .btn-action {
+            border: none;
+            padding: 12px 26px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 80px;
+        }
+        #start { background-color: var(--text-main); color: var(--card-bg); }
+        #pause { background-color: transparent; color: var(--text-main); border: 1px solid var(--border-color); }
+        #reset { background-color: #fff5f5; color: #e11d48; }
+        body.theme-gray #reset, body.theme-black #reset { background-color: #4c1d15; color: #fda4af; }
+
+        .btn-pip {
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px dashed var(--border-color);
+            padding: 8px 18px;
+            font-size: 0.8rem;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 25px;
+        }
+        .btn-pip:hover { color: #a855f7; border-color: #a855f7; }
+
+        .pip-control[hidden] { display: none; }
+
+        .btn-action:active, .btn-time:active, .btn-mini:active, .btn-tab:active { transform: scale(0.96); }
+
+        .brand-footer {
+            font-size: 1.15rem; 
+            color: var(--text-main);
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+            font-style: italic;
+            font-weight: 300;
+            letter-spacing: 0.5px;
+            opacity: 0.8;
+        }
+
+        /* iPhone 與小尺寸行動裝置 */
+        @media (max-width: 480px) {
+            body {
+                align-items: flex-start;
+                padding:
+                    max(12px, env(safe-area-inset-top))
+                    max(12px, env(safe-area-inset-right))
+                    max(18px, env(safe-area-inset-bottom))
+                    max(12px, env(safe-area-inset-left));
+            }
+
+            .wrapper {
+                width: 100%;
+                padding: 24px 18px;
+                border-radius: 14px;
+            }
+
+            .control-panel { gap: 10px; }
+            .panel-row { gap: 10px; flex-wrap: wrap; }
+
+            .audio-settings {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 40px auto 40px;
+                width: 100%;
+                gap: 7px;
+            }
+
+            .theme-selector { margin-left: auto; }
+
+            .btn-mini,
+            .btn-theme-dot {
+                min-height: 40px;
+                min-width: 40px;
+                padding: 7px 9px;
+                font-size: 0.82rem;
+            }
+
+            .loop-settings { gap: 7px; }
+
+            .config-tabs { margin-top: 2px; }
+
+            .btn-tab {
+                min-height: 44px;
+                padding: 8px 5px;
+                font-size: 0.82rem;
+            }
+
+            .adjust-container {
+                gap: 8px;
+                margin-bottom: 24px;
+            }
+
+            .btn-time {
+                min-height: 44px;
+                padding: 8px 4px;
+                font-size: 0.86rem;
+            }
+
+            .time-display {
+                font-size: clamp(4.6rem, 24vw, 5.8rem);
+            }
+
+            .control-container {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .btn-action {
+                width: 100%;
+                min-width: 0;
+                min-height: 48px;
+                padding: 12px 8px;
+            }
+
+            .brand-footer {
+                font-size: 1rem;
+                line-height: 1.45;
+            }
+        }
+
+        /* iPad 與較寬平板 */
+        @media (min-width: 768px) {
+            .wrapper {
+                width: 430px;
+                padding: 40px 46px;
+            }
+
+            .btn-action,
+            .btn-time,
+            .btn-tab,
+            .btn-mini,
+            .btn-theme-dot {
+                min-height: 44px;
+            }
+        }
+
+        /* 橫向或高度不足時保留捲動空間 */
+        @media (max-height: 720px) {
+            body { align-items: flex-start; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+    </style>
+</head>
+<body class="theme-white">
+
+<main class="wrapper">
+    <div class="control-panel">
+        <div class="panel-row">
+            <div class="audio-settings">
+                <button class="btn-mini" id="toggle-sound">✈️ 客艙廣播 (I)</button>
+                <button class="btn-mini" id="vol-down">－</button>
+                <span id="vol-text">Vol: 40%</span>
+                <button class="btn-mini" id="vol-up">＋</button>
+            </div>
+            <div class="theme-selector">
+                <button class="btn-theme-dot" data-theme="white">白</button>
+                <button class="btn-theme-dot" data-theme="gray">灰</button>
+                <button class="btn-theme-dot" data-theme="black">黑</button>
+            </div>
+        </div>
+        <div class="panel-row">
+            <div class="loop-settings">
+                <span>循環限制：</span>
+                <button class="btn-mini" id="btn-sets-down">－</button>
+                <span id="btn-sets" style="font-weight: 600; min-width: 55px; display: inline-block; text-align: center;">組數: ∞</span>
+                <button class="btn-mini" id="btn-sets-up">＋</button>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);" id="round-indicator">
+                Loop: 1 / --
+            </div>
+        </div>
+    </div>
+
+    <div class="config-tabs">
+        <button class="btn-tab active-focus" id="tab-focus">⚙️ 專注時間 (<span id="lbl-f-time">25</span>m)</button>
+        <button class="btn-tab" id="tab-break">⚙️ 休息時間 (<span id="lbl-b-time">5</span>m)</button>
+    </div>
+
+    <div class="adjust-container">
+        <button class="btn-time" id="m5">-5 Min</button>
+        <button class="btn-time" id="m1">-1 Min</button>
+        <button class="btn-time" id="m30s">-30 Sec</button>
+        <button class="btn-time" id="p30s">+30 Sec</button>
+        <button class="btn-time" id="p1">+1 Min</button>
+        <button class="btn-time" id="p5">+5 Min</button>
+    </div>
+
+    <div class="status-indicator" id="status" aria-live="polite">READY (FOCUS)</div>
+    <div class="time-display" id="display" role="timer" aria-label="剩餘時間">25:00</div>
+
+    <div class="progress-container">
+        <div class="progress-bar" id="progress"></div>
+    </div>
+
+    <div class="control-container">
+        <button class="btn-action" id="start">開始</button>
+        <button class="btn-action" id="pause">暫停</button>
+        <button class="btn-action" id="reset">重設</button>
+    </div>
+
+    <div class="pip-control" id="pip-control">
+        <button class="btn-pip" id="pip-btn">✦ 開啟桌面浮動小視窗</button>
+    </div>
+
+    <div class="brand-footer">Daily Triumph, Value Creation</div>
+</main>
+
+<script>
+    // 核心變數與元件參考
+    let focusDefaultTime = 25 * 60;
+    let breakDefaultTime = 5 * 60;
+    let timeLeft = focusDefaultTime;
+    
+    let isBreakMode = false;        
+    let currentConfigTab = 'focus'; 
+    let maxRounds = 0;              
+    let currentRound = 1;         
+    
+    let timerId = null;
+    let audioCtx = null;
+    let alarmInterval = null;
+    let alarmTimeout = null;
+    let isRinging = false;
+    let ringingPhase = null;      
+    let pipWindow = null;
+    let currentTheme = 'white';
+    
+    let volumeLevel = 0.4; 
+    let soundType = 'aviation1';  
+    const soundNames = {
+        'chime': '🎵 經典和弦',
+        'aviation1': '✈️ 客艙廣播 (I)',
+        'aviation2': '🔔 乘務呼叫 (II)',
+        'aviation3': '💺 安全帶燈 (III)',
+        'aviation4': '🗺️ 航廈廣播 (IV)',
+        'aviation5': '🚨 駕駛艙警告 (V)',
+        'aviation6': '📞 機內對講 (VI)',
+        'aviation7': '🛎️ 復古機械鑼 (VII)'
+    };
+
+    let startTime = 0;
+    let initialTimeLeft = 0;
+
+    // 抓取 DOM 節點
+    const display = document.getElementById('display');
+    const statusText = document.getElementById('status');
+    const progressBar = document.getElementById('progress');
+    const roundIndicator = document.getElementById('round-indicator');
+    const btnSets = document.getElementById('btn-sets');
+    const tabFocus = document.getElementById('tab-focus');
+    const tabBreak = document.getElementById('tab-break');
+    const lblFTime = document.getElementById('lbl-f-time');
+    const lblBTime = document.getElementById('lbl-b-time');
+    const soundToggleBtn = document.getElementById('toggle-sound');
+    const volText = document.getElementById('vol-text');
+    const pipControl = document.getElementById('pip-control');
+    const themeColorMeta = document.getElementById('theme-color-meta');
+
+    const safeBind = (id, event, callback) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(event, callback);
+    };
+
+    function formatTabMinutes(seconds) {
+        const mins = seconds / 60;
+        return mins % 1 === 0 ? mins : mins.toFixed(1);
+    }
+
+    function updateDisplay() {
+        try {
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            const timeStr = `${m}:${s}`;
+            
+            if (display) display.textContent = timeStr;
+            if (lblFTime) lblFTime.textContent = formatTabMinutes(focusDefaultTime);
+            if (lblBTime) lblBTime.textContent = formatTabMinutes(breakDefaultTime);
+
+            const currentDefault = isBreakMode ? breakDefaultTime : focusDefaultTime;
+            const progressPercent = currentDefault > 0 ? (timeLeft / currentDefault) * 100 : 0;
+            
+            if (progressBar) {
+                progressBar.style.width = `${progressPercent}%`;
+                progressBar.style.backgroundColor = isBreakMode ? 'var(--break-accent)' : 'var(--focus-accent)';
+            }
+
+            const maxRoundText = maxRounds === 0 ? '∞' : maxRounds;
+            if (roundIndicator) roundIndicator.textContent = `Loop: ${currentRound} / ${maxRoundText}`;
+            if (btnSets) btnSets.textContent = maxRounds === 0 ? '組數: ∞' : `組數: ${maxRounds}組`;
+
+            let modeLabel = isBreakMode ? 'BREAK' : 'FOCUS';
+            if (statusText) {
+                if (timerId !== null) {
+                    statusText.textContent = `FOCUSING (${modeLabel} ${currentRound}/${maxRoundText})`;
+                    document.title = `[${timeStr}] ${modeLabel} — Triumph Pomodoro`;
+                } else if (statusText.textContent && statusText.textContent.startsWith('PAUSED')) {
+                    statusText.textContent = `PAUSED (${modeLabel})`;
+                    document.title = `[已暫停] ${timeStr}`;
+                } else if (isRinging) {
+                    statusText.textContent = `TIME UP!`;
+                    document.title = `[時間到!]`;
+                } else {
+                    statusText.textContent = `READY (${modeLabel})`;
+                    document.title = `Triumph Pomodoro`;
+                }
+            }
+
+            // 跨視窗 PiP 渲染
+            if (pipWindow && !pipWindow.closed) {
+                try {
+                    const pipDoc = pipWindow.document;
+                    if (pipDoc) {
+                        const pipDiv = pipDoc.getElementById('pip-clock');
+                        const pipStatus = pipDoc.getElementById('pip-status');
+                        const pipBar = pipDoc.getElementById('pip-bar');
+                        
+                        if (pipDiv) pipDiv.textContent = timeStr;
+                        if (pipBar) {
+                            pipBar.style.width = `${progressPercent}%`;
+                            pipBar.style.background = isBreakMode ? '#10b981' : '#f97316';
+                        }
+                        if (pipStatus) {
+                            if (timerId !== null) {
+                                pipStatus.textContent = `${modeLabel} ${currentRound}/${maxRoundText}`;
+                            } else if (statusText && statusText.textContent && statusText.textContent.startsWith('PAUSED')) {
+                                pipStatus.textContent = `PAUSED`;
+                            } else if (isRinging) {
+                                pipStatus.textContent = `DONE!`;
+                            } else {
+                                pipStatus.textContent = `READY`;
+                            }
+                        }
+                    }
+                } catch (pipErr) {
+                    pipWindow = null;
+                }
+            }
+        } catch (err) {
+            console.error("Rendering interface error: ", err);
+        }
+    }
+
+    function applyThemeToPip() {
+        if (!pipWindow || pipWindow.closed) return; 
+        try {
+            const b = pipWindow.document.body;
+            const s = pipWindow.document.getElementById('pip-status');
+            const bgBar = pipWindow.document.getElementById('pip-bar-bg');
+            if (!b) return;
+
+            if (currentTheme === 'white') {
+                b.style.background = '#ffffff'; b.style.color = '#1c1917';
+                if (s) s.style.color = '#78716c';
+                if (bgBar) bgBar.style.background = '#e7e5e4';
+            } else if (currentTheme === 'gray') {
+                b.style.background = '#27272a'; b.style.color = '#ffffff';
+                if (s) s.style.color = '#a1a1aa';
+                if (bgBar) bgBar.style.background = '#52525b';
+            } else if (currentTheme === 'black') {
+                b.style.background = '#09090b'; b.style.color = '#ffffff';
+                if (s) s.style.color = '#71717a';
+                if (bgBar) bgBar.style.background = '#27272a';
+            }
+        } catch(e){}
+    }
+
+    function initAudio() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') { 
+                audioCtx.resume(); 
+            }
+        } catch (e) { console.error("Audio system init error:", e); }
+    }
+
+    function triggerChime() {
+        try {
+            initAudio();
+            if (!audioCtx || volumeLevel <= 0) return; 
+            
+            const now = audioCtx.currentTime;
+            
+            if (soundType === 'chime') {
+                const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
+                osc1.type = 'sine'; osc1.frequency.setValueAtTime(523.25, now);
+                gain1.gain.setValueAtTime(0, now); gain1.gain.linearRampToValueAtTime(volumeLevel * 0.8, now + 0.04); 
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+                osc1.connect(gain1); gain1.connect(audioCtx.destination); osc1.start(now); osc1.stop(now + 1.6);
+
+                const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+                osc2.type = 'sine'; osc2.frequency.setValueAtTime(659.25, now + 0.1);
+                gain2.gain.setValueAtTime(0, now + 0.1); gain2.gain.linearRampToValueAtTime(volumeLevel * 0.5, now + 0.14); 
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+                osc2.connect(gain2); gain2.connect(audioCtx.destination); osc2.start(now + 0.1); osc2.stop(now + 2.0);
+                
+            } else if (soundType === 'aviation1') {
+                const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
+                osc1.type = 'sine'; osc1.frequency.setValueAtTime(554.37, now); 
+                gain1.gain.setValueAtTime(0, now); gain1.gain.linearRampToValueAtTime(volumeLevel * 0.9, now + 0.05);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+                osc1.connect(gain1); gain1.connect(audioCtx.destination); osc1.start(now); osc1.stop(now + 2.2);
+
+                const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+                osc2.type = 'sine'; osc2.frequency.setValueAtTime(440.00, now + 0.32); 
+                gain2.gain.setValueAtTime(0, now + 0.32); gain2.gain.linearRampToValueAtTime(volumeLevel * 1.0, now + 0.37);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 2.8);
+                osc2.connect(gain2); gain2.connect(audioCtx.destination); osc2.start(now + 0.32); osc2.stop(now + 2.8);
+
+            } else if (soundType === 'aviation2') {
+                for (let i = 0; i < 2; i++) {
+                    const delay = i * 0.6;
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(587.33, now + delay); 
+                    gain.gain.setValueAtTime(0, now + delay); gain.gain.linearRampToValueAtTime(volumeLevel * 0.9, now + delay + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.8);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now + delay); osc.stop(now + delay + 0.8);
+
+                    const oscB = audioCtx.createOscillator(); const gainB = audioCtx.createGain();
+                    oscB.type = 'sine'; oscB.frequency.setValueAtTime(493.88, now + delay + 0.15); 
+                    gainB.gain.setValueAtTime(0, now + delay + 0.15); gainB.gain.linearRampToValueAtTime(volumeLevel * 0.8, now + delay + 0.19);
+                    gainB.gain.exponentialRampToValueAtTime(0.001, now + delay + 1.2);
+                    oscB.connect(gainB); gainB.connect(audioCtx.destination); oscB.start(now + delay + 0.15); oscB.stop(now + delay + 1.2);
+                }
+
+            } else if (soundType === 'aviation3') {
+                [349.23, 440.00].forEach(freq => {
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now);
+                    gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(volumeLevel * 0.7, now + 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 3.0);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 3.0);
+                });
+
+            } else if (soundType === 'aviation4') {
+                const tones = [349.23, 440.00, 523.25, 698.46]; 
+                tones.forEach((freq, idx) => {
+                    const tDelay = idx * 0.22;
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + tDelay);
+                    gain.gain.setValueAtTime(0, now + tDelay); gain.gain.linearRampToValueAtTime(volumeLevel * 0.8, now + tDelay + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + tDelay + 1.8);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now + tDelay); osc.stop(now + tDelay + 1.8);
+                });
+
+            } else if (soundType === 'aviation5') {
+                [0.0, 0.25].forEach(delay => {
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(880.00, now + delay); 
+                    gain.gain.setValueAtTime(0, now + delay); gain.gain.linearRampToValueAtTime(volumeLevel * 0.9, now + delay + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.18);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now + delay); osc.stop(now + delay + 0.18);
+                });
+
+            } else if (soundType === 'aviation6') {
+                const oscA = audioCtx.createOscillator(); const gainA = audioCtx.createGain();
+                oscA.type = 'sine'; oscA.frequency.setValueAtTime(659.25, now); 
+                gainA.gain.setValueAtTime(0, now); gainA.gain.linearRampToValueAtTime(volumeLevel * 0.8, now + 0.04);
+                gainA.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+                oscA.connect(gainA); gainA.connect(audioCtx.destination); oscA.start(now); oscA.stop(now + 1.2);
+
+                const oscB = audioCtx.createOscillator(); const gainB = audioCtx.createGain();
+                oscB.type = 'sine'; oscB.frequency.setValueAtTime(523.25, now + 0.2); 
+                gainB.gain.setValueAtTime(0, now + 0.2); gainB.gain.linearRampToValueAtTime(volumeLevel * 0.8, now + 0.24);
+                gainB.gain.exponentialRampToValueAtTime(0.001, now + 0.2 + 1.5);
+                oscB.connect(gainB); gainB.connect(audioCtx.destination); oscB.start(now + 0.2); oscB.stop(now + 0.2 + 1.5);
+
+            } else if (soundType === 'aviation7') {
+                [220.00, 222.00, 440.00].forEach((freq, i) => {
+                    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                    o.type = i === 1 ? 'triangle' : 'sine'; 
+                    o.frequency.setValueAtTime(freq, now);
+                    g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(volumeLevel * (i === 1 ? 0.2 : 0.6), now + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + 3.5); 
+                    o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 3.5);
+                });
+            }
+        } catch (e) { console.error("Audio trigger exception:", e); }
+    }
+
+    function startAlarmLoop(phase) {
+        stopAlarmLoop();
+        isRinging = true;
+        ringingPhase = phase;
+        updateDisplay();
+        triggerChime();
+        let intervalTime = 4000;
+        if (soundType === 'aviation5') intervalTime = 2000; 
+        if (soundType === 'aviation4') intervalTime = 5000; 
+        alarmInterval = setInterval(triggerChime, intervalTime); 
+        
+        alarmTimeout = setTimeout(() => {
+            if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+        }, 60000); 
+    }
+
+    function stopAlarmLoop() {
+        if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+        if (alarmTimeout) { clearTimeout(alarmTimeout); alarmTimeout = null; }
+    }
+
+    // 重構解除警報機制：確保跨視窗（PiP）觸發時能自動重啟計時核心
+    function handleDismiss() {
+        if (!isRinging) return;
+        
+        stopAlarmLoop();
+        isRinging = false;
+        
+        if (ringingPhase === 'focus') {
+            isBreakMode = true;
+            timeLeft = breakDefaultTime;
+            currentConfigTab = 'break';
+            if (tabFocus) tabFocus.className = 'btn-tab';
+            if (tabBreak) tabBreak.className = 'btn-tab active-break';
+        } else if (ringingPhase === 'break') {
+            if (maxRounds > 0 && currentRound >= maxRounds) {
+                isBreakMode = false;
+                timeLeft = focusDefaultTime;
+                currentConfigTab = 'focus';
+                if (tabFocus) tabFocus.className = 'btn-tab active-focus';
+                if (tabBreak) tabBreak.className = 'btn-tab';
+                currentRound = 1;
+                if (statusText) statusText.textContent = 'ALL SETS FINISHED';
+                updateDisplay();
+                ringingPhase = null;
+                return;
+            } else {
+                currentRound++;
+                isBreakMode = false;
+                timeLeft = focusDefaultTime;
+                currentConfigTab = 'focus';
+                if (tabFocus) tabFocus.className = 'btn-tab active-focus';
+                if (tabBreak) tabBreak.className = 'btn-tab';
+            }
+        }
+        
+        ringingPhase = null;
+        updateDisplay();
+        
+        // 關鍵修正：點擊小視窗解除後，自動以新的時間戳強制重新啟動倒數
+        autoStartTimer();
+    }
+
+    document.body.addEventListener('click', () => { if (isRinging) handleDismiss(); });
+
+    function autoStartTimer() {
+        if (timerId !== null) clearInterval(timerId);
+        if (display) display.classList.add('running');
+        startTime = Date.now();
+        initialTimeLeft = timeLeft;
+
+        timerId = setInterval(syncTimerFromClock, 250);
+        syncTimerFromClock();
+    }
+
+    // iOS 進入背景時可能暫停網頁更新；回到畫面後以實際時間校正。
+    function syncTimerFromClock() {
+        if (timerId === null) return;
+
+        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+        timeLeft = initialTimeLeft - elapsedSeconds;
+
+        if (timeLeft <= 0) {
+            timeLeft = 0;
+            clearInterval(timerId);
+            timerId = null;
+            if (display) display.classList.remove('running');
+            startAlarmLoop(isBreakMode ? 'break' : 'focus');
+        }
+        updateDisplay();
+    }
+
+    function adjustTime(amount) {
+        if (isRinging) return;
+        
+        if (currentConfigTab === 'focus') {
+            focusDefaultTime = Math.max(0, focusDefaultTime + amount);
+        } else {
+            breakDefaultTime = Math.max(0, breakDefaultTime + amount);
+        }
+
+        if (timerId === null) {
+            if (currentConfigTab === 'focus' && !isBreakMode) timeLeft = focusDefaultTime;
+            if (currentConfigTab === 'break' && isBreakMode) timeLeft = breakDefaultTime;
+            if (currentConfigTab === 'focus' && isBreakMode) timeLeft = focusDefaultTime; 
+            if (currentConfigTab === 'break' && !isBreakMode) timeLeft = breakDefaultTime;
+        }
+
+        if (timerId !== null) {
+            const isAdjustingCurrentActiveMode = (currentConfigTab === 'focus' && !isBreakMode) || (currentConfigTab === 'break' && isBreakMode);
+            if (isAdjustingCurrentActiveMode) {
+                timeLeft = Math.max(0, timeLeft + amount);
+                startTime = Date.now(); 
+                initialTimeLeft = timeLeft;
+            }
+        }
+        updateDisplay();
+    }
+
+    async function openPipWindow() {
+        if (!window.documentPictureInPicture) {
+            alert("請使用 Chrome/Edge 瀏覽器以支援置頂浮窗功能！");
+            return;
+        }
+        if (pipWindow) { pipWindow.close(); return; }
+
+        try {
+            pipWindow = await window.documentPictureInPicture.requestWindow({ width: 160, height: 70 });
+            const pipDoc = pipWindow.document;
+            const style = pipDoc.createElement('style');
+            style.textContent = `
+                body { 
+                    margin: 0; padding: 4px 10px; display: flex; flex-direction: column; 
+                    justify-content: center; height: 100vh; 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+                    user-select: none; overflow: hidden; box-sizing: border-box;
+                    transition: background 0.3s, color 0.3s;
+                    cursor: pointer;
+                }
+                .pip-row { display: flex; justify-content: space-between; align-items: baseline; width: 100%; }
+                .pip-status { font-size: 0.65rem; letter-spacing: 0.5px; font-weight: 700; text-transform: uppercase; opacity: 0.8; }
+                .pip-clock { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.5px; }
+                
+                .pip-bar-bg { width: 100%; height: 3px; border-radius: 1.5px; margin-top: 5px; position: relative; background: #e7e5e4; overflow: visible; }
+                .pip-bar { height: 100%; width: 100%; position: relative; transition: width 0.25s linear, background-color 0.3s; }
+                
+                .pip-bar::after {
+                    content: '✈️';
+                    position: absolute;
+                    right: -6px;
+                    top: 50%;
+                    transform: translateY(-50%) scaleX(-1);
+                    font-size: 11px;
+                    line-height: 1;
+                }
+            `;
+            pipDoc.head.appendChild(style);
+
+            const rowDiv = pipDoc.createElement('div'); rowDiv.className = 'pip-row';
+            const statusDiv = pipDoc.createElement('div'); statusDiv.id = 'pip-status'; statusDiv.className = 'pip-status';
+            const clockDiv = pipDoc.createElement('div'); clockDiv.id = 'pip-clock'; clockDiv.className = 'pip-clock';
+            
+            rowDiv.appendChild(statusDiv); 
+            rowDiv.appendChild(clockDiv);
+
+            const barBg = pipDoc.createElement('div'); barBg.id = 'pip-bar-bg'; barBg.className = 'pip-bar-bg';
+            const bar = pipDoc.createElement('div'); bar.id = 'pip-bar'; bar.className = 'pip-bar';
+            
+            barBg.appendChild(bar); 
+            pipDoc.body.appendChild(rowDiv); 
+            pipDoc.body.appendChild(barBg);
+
+            // 跨視窗事件同步核心：點擊 PiP 視窗任一處皆能完美關閉警報並推動下一輪倒數
+            pipDoc.body.addEventListener('click', (e) => { 
+                if (isRinging) {
+                    e.stopPropagation();
+                    handleDismiss(); 
+                }
+            });
+            
+            pipWindow.addEventListener('pagehide', () => { pipWindow = null; });
+
+            applyThemeToPip();
+            updateDisplay();
+        } catch (error) { console.error(error); }
+    }
+
+    // ==================== 事件綁定矩陣 ====================
+    safeBind('tab-focus', 'click', (e) => {
+        e.stopPropagation();
+        currentConfigTab = 'focus';
+        if (tabFocus) tabFocus.className = 'btn-tab active-focus';
+        if (tabBreak) tabBreak.className = 'btn-tab';
+        
+        if (timerId === null) { timeLeft = focusDefaultTime; isBreakMode = false; } 
+        updateDisplay();
+    });
+
+    safeBind('tab-break', 'click', (e) => {
+        e.stopPropagation();
+        currentConfigTab = 'break';
+        if (tabFocus) tabFocus.className = 'btn-tab';
+        if (tabBreak) tabBreak.className = 'btn-tab active-break';
+        
+        if (timerId === null) { timeLeft = breakDefaultTime; isBreakMode = true; } 
+        updateDisplay();
+    });
+
+    safeBind('pip-btn', 'click', (e) => { e.stopPropagation(); openPipWindow(); });
+
+    safeBind('btn-sets-up', 'click', (e) => {
+        e.stopPropagation();
+        if (maxRounds < 12) { 
+            maxRounds++;
+        }
+        currentRound = 1;
+        updateDisplay();
+    });
+
+    safeBind('btn-sets-down', 'click', (e) => {
+        e.stopPropagation();
+        if (maxRounds > 1) {
+            maxRounds--;
+        } else {
+            maxRounds = 0; 
+        }
+        currentRound = 1;
+        updateDisplay();
+    });
+
+    safeBind('toggle-sound', 'click', (e) => {
+        e.stopPropagation();
+        initAudio();
+        const keys = Object.keys(soundNames);
+        let nextIndex = (keys.indexOf(soundType) + 1) % keys.length;
+        soundType = keys[nextIndex];
+        if (soundToggleBtn) soundToggleBtn.textContent = soundNames[soundType];
+        triggerChime(); 
+    });
+
+    safeBind('vol-up', 'click', (e) => {
+        e.stopPropagation();
+        if (volumeLevel < 1.0) {
+            volumeLevel = Math.min(1.0, volumeLevel + 0.1);
+            if (volText) volText.textContent = `Vol: ${Math.round(volumeLevel * 100)}%`;
+            triggerChime();
+        }
+    });
+
+    safeBind('vol-down', 'click', (e) => {
+        e.stopPropagation();
+        if (volumeLevel > 0.0) {
+            volumeLevel = Math.max(0.0, volumeLevel - 0.1);
+            if (volText) volText.textContent = volumeLevel <= 0 ? "Vol: MUTE" : `Vol: ${Math.round(volumeLevel * 100)}%`;
+            triggerChime();
+        }
+    });
+
+    document.querySelectorAll('.btn-theme-dot').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const theme = btn.getAttribute('data-theme');
+            document.body.className = `theme-${theme}`;
+            currentTheme = theme;
+            if (themeColorMeta) {
+                const themeColors = { white: '#faf9f6', gray: '#3f3f46', black: '#09090b' };
+                themeColorMeta.setAttribute('content', themeColors[theme] || '#faf9f6');
+            }
+            applyThemeToPip();
+            updateDisplay();
+        });
+    });
+
+    safeBind('start', 'click', (e) => {
+        e.stopPropagation();
+        initAudio();
+        if (isRinging) { handleDismiss(); return; }
+        
+        if (timerId === null && timeLeft > 0) {
+            autoStartTimer();
+            updateDisplay();
+        }
+    });
+
+    safeBind('pause', 'click', (e) => {
+        e.stopPropagation();
+        if (isRinging) { handleDismiss(); return; }
+        if (timerId !== null) {
+            clearInterval(timerId);
+            timerId = null;
+            if (display) display.classList.remove('running');
+            if (statusText) statusText.textContent = 'PAUSED';
+            updateDisplay();
+        }
+    });
+
+    safeBind('reset', 'click', (e) => {
+        e.stopPropagation();
+        stopAlarmLoop();
+        isRinging = false;
+        if (timerId !== null) { clearInterval(timerId); timerId = null; }
+        isBreakMode = false;
+        currentConfigTab = 'focus';
+        if (tabFocus) tabFocus.className = 'btn-tab active-focus';
+        if (tabBreak) tabBreak.className = 'btn-tab';
+        currentRound = 1;
+        timeLeft = focusDefaultTime;
+        if (display) display.classList.remove('running');
+        if (statusText) statusText.textContent = 'READY (FOCUS)';
+        updateDisplay();
+    });
+
+    safeBind('m5', 'click', (e) => { e.stopPropagation(); adjustTime(-300); });
+    safeBind('m1', 'click', (e) => { e.stopPropagation(); adjustTime(-60); });
+    safeBind('m30s', 'click', (e) => { e.stopPropagation(); adjustTime(-30); });
+    safeBind('p30s', 'click', (e) => { e.stopPropagation(); adjustTime(30); });
+    safeBind('p1', 'click', (e) => { e.stopPropagation(); adjustTime(60); });
+    safeBind('p5', 'click', (e) => { e.stopPropagation(); adjustTime(300); });
+
+    if (pipControl && !window.documentPictureInPicture) {
+        pipControl.hidden = true;
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') syncTimerFromClock();
+    });
+
+    updateDisplay();
+</script>
+</body>
+</html>
