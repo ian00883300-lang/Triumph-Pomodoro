@@ -113,6 +113,11 @@
             align-items: center;
         }
 
+        .panel-row.utility-row {
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+
         .audio-settings, .loop-settings {
             display: flex;
             gap: 6px;
@@ -142,6 +147,25 @@
             transition: all 0.2s;
         }
         .btn-mini:hover { color: var(--text-main); border-color: var(--text-muted); }
+
+        .btn-sound-toggle {
+            min-width: 32px;
+            padding-inline: 7px;
+            font-size: 0.9rem;
+        }
+
+        .btn-sound-toggle.is-muted {
+            color: #e11d48;
+            background: rgba(225, 29, 72, 0.08);
+            border-color: #e11d48;
+        }
+
+        .round-count {
+            display: inline-block;
+            min-width: 55px;
+            font-weight: 600;
+            text-align: center;
+        }
 
         .theme-selector { display: flex; gap: 4px; }
         .btn-theme-dot {
@@ -223,6 +247,18 @@
             letter-spacing: 2px;
             font-weight: 700;
             margin-bottom: 2px;
+        }
+
+        .status-indicator.time-up-alert {
+            color: #e11d48;
+            font-weight: 900;
+            letter-spacing: 0.16em;
+            animation: time-up-flash 0.72s steps(2, end) infinite;
+        }
+
+        @keyframes time-up-flash {
+            0%, 42% { opacity: 1; transform: scale(1); }
+            43%, 100% { opacity: 0.25; transform: scale(1.04); }
         }
 
         .time-display {
@@ -336,12 +372,15 @@
 
             .audio-settings {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) 40px auto 40px;
+                grid-template-columns: minmax(0, 1fr) 40px auto 40px 40px;
                 width: 100%;
                 gap: 7px;
             }
 
-            .theme-selector { margin-left: auto; }
+            .utility-row .theme-selector {
+                margin-left: auto;
+                flex: 0 0 auto;
+            }
 
             .btn-mini,
             .btn-theme-dot {
@@ -351,7 +390,21 @@
                 font-size: 0.82rem;
             }
 
-            .loop-settings { gap: 7px; }
+            .utility-row .loop-settings {
+                gap: 4px;
+                min-width: 0;
+                white-space: nowrap;
+            }
+
+            .utility-row .btn-mini,
+            .utility-row .btn-theme-dot {
+                min-width: 34px;
+                min-height: 36px;
+                padding: 5px 6px;
+                font-size: 0.76rem;
+            }
+
+            .round-count { min-width: 50px; }
 
             .config-tabs { margin-top: 2px; }
 
@@ -395,6 +448,30 @@
             }
         }
 
+        @media (max-width: 360px) {
+            body {
+                padding:
+                    max(12px, env(safe-area-inset-top))
+                    max(6px, env(safe-area-inset-right))
+                    max(16px, env(safe-area-inset-bottom))
+                    max(6px, env(safe-area-inset-left));
+            }
+
+            .wrapper { padding: 22px 8px; }
+            .audio-settings { gap: 5px; }
+            .panel-row.utility-row { gap: 6px; }
+            .utility-row .loop-settings { gap: 3px; font-size: 0.7rem; }
+            .utility-row .theme-selector { gap: 3px; }
+            .utility-row .btn-mini,
+            .utility-row .btn-theme-dot {
+                min-width: 32px;
+                min-height: 34px;
+                padding: 4px 5px;
+                font-size: 0.72rem;
+            }
+            .round-count { min-width: 46px; }
+        }
+
         /* iPad 與較寬平板 */
         @media (min-width: 768px) {
             .wrapper {
@@ -434,27 +511,25 @@
             <div class="audio-settings">
                 <button class="btn-mini" id="toggle-sound">✈️ 客艙廣播 (I)</button>
                 <button class="btn-mini" id="vol-down">－</button>
-                <span id="vol-text">Vol: 55%</span>
+                <span id="vol-text">Vol: 60%</span>
                 <button class="btn-mini" id="vol-up">＋</button>
+                <button class="btn-mini btn-sound-toggle" id="sound-enabled" type="button" aria-label="關閉音效" aria-pressed="true" title="關閉音效">🔊</button>
             </div>
-            <div class="theme-selector">
+        </div>
+        <div class="panel-row utility-row">
+            <div class="loop-settings">
+                <span>循環限制：</span>
+                <button class="btn-mini" id="btn-sets-down">－</button>
+                <span class="round-count" id="btn-sets">組數: ∞</span>
+                <button class="btn-mini" id="btn-sets-up">＋</button>
+            </div>
+            <div class="theme-selector" aria-label="背景主題">
                 <button class="btn-theme-dot" data-theme="white">白</button>
                 <button class="btn-theme-dot" data-theme="gray">灰</button>
                 <button class="btn-theme-dot" data-theme="black">黑</button>
             </div>
         </div>
-        <div class="panel-row">
-            <div class="loop-settings">
-                <span>循環限制：</span>
-                <button class="btn-mini" id="btn-sets-down">－</button>
-                <span id="btn-sets" style="font-weight: 600; min-width: 55px; display: inline-block; text-align: center;">組數: ∞</span>
-                <button class="btn-mini" id="btn-sets-up">＋</button>
-            </div>
-            <div style="font-size: 0.72rem; color: var(--text-muted);" id="round-indicator">
-                Loop: 1 / --
-            </div>
-        </div>
-        <div class="audio-status" id="audio-status" aria-live="polite">🔊 點音效按鈕可立即試聽</div>
+        <div class="audio-status" id="audio-status" aria-live="polite">點音效名稱可完整試聽</div>
     </div>
 
     <div class="config-tabs">
@@ -463,15 +538,15 @@
     </div>
 
     <div class="adjust-container">
-        <button class="btn-time" id="m5">-5 Min</button>
+        <button class="btn-time" id="p5">+5 Min</button>
         <button class="btn-time" id="m1">-1 Min</button>
         <button class="btn-time" id="m30s">-30 Sec</button>
-        <button class="btn-time" id="p30s">+30 Sec</button>
+        <button class="btn-time" id="m5">-5 Min</button>
         <button class="btn-time" id="p1">+1 Min</button>
-        <button class="btn-time" id="p5">+5 Min</button>
+        <button class="btn-time" id="p30s">+30 Sec</button>
     </div>
 
-    <div class="status-indicator" id="status" aria-live="polite">READY (FOCUS)</div>
+    <div class="status-indicator" id="status" aria-live="assertive">READY (FOCUS)</div>
     <div class="time-display" id="display" role="timer" aria-label="剩餘時間">25:00</div>
 
     <div class="progress-container">
@@ -516,7 +591,9 @@
     let pipWindow = null;
     let currentTheme = 'white';
     
-    let volumeLevel = 0.55;
+    let volumePercent = 60;
+    let volumeLevel = volumePercent / 100;
+    let soundEnabled = true;
     let soundType = 'aviation1';  
     const isAppleTouchDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -538,13 +615,13 @@
     const display = document.getElementById('display');
     const statusText = document.getElementById('status');
     const progressBar = document.getElementById('progress');
-    const roundIndicator = document.getElementById('round-indicator');
     const btnSets = document.getElementById('btn-sets');
     const tabFocus = document.getElementById('tab-focus');
     const tabBreak = document.getElementById('tab-break');
     const lblFTime = document.getElementById('lbl-f-time');
     const lblBTime = document.getElementById('lbl-b-time');
     const soundToggleBtn = document.getElementById('toggle-sound');
+    const soundEnabledBtn = document.getElementById('sound-enabled');
     const volText = document.getElementById('vol-text');
     const audioStatus = document.getElementById('audio-status');
     const pipControl = document.getElementById('pip-control');
@@ -579,11 +656,11 @@
             }
 
             const maxRoundText = maxRounds === 0 ? '∞' : maxRounds;
-            if (roundIndicator) roundIndicator.textContent = `Loop: ${currentRound} / ${maxRoundText}`;
             if (btnSets) btnSets.textContent = maxRounds === 0 ? '組數: ∞' : `組數: ${maxRounds}組`;
 
             let modeLabel = isBreakMode ? 'BREAK' : 'FOCUS';
             if (statusText) {
+                statusText.classList.toggle('time-up-alert', isRinging);
                 if (timerId !== null) {
                     statusText.textContent = `FOCUSING (${modeLabel} ${currentRound}/${maxRoundText})`;
                     document.title = `[${timeStr}] ${modeLabel} — Triumph Pomodoro`;
@@ -662,6 +739,26 @@
         if (!audioStatus) return;
         audioStatus.textContent = message;
         audioStatus.classList.toggle('error', isError);
+    }
+
+    function updateVolumeDisplay() {
+        if (volText) volText.textContent = `Vol: ${volumePercent}%`;
+        if (mobileAlarmAudio) mobileAlarmAudio.volume = volumeLevel;
+    }
+
+    function setVolumePercent(nextPercent) {
+        volumePercent = Math.max(10, Math.min(100, Math.round(nextPercent / 10) * 10));
+        volumeLevel = volumePercent / 100;
+        updateVolumeDisplay();
+    }
+
+    function updateSoundEnabledUI() {
+        if (!soundEnabledBtn) return;
+        soundEnabledBtn.textContent = soundEnabled ? '🔊' : '🔇';
+        soundEnabledBtn.setAttribute('aria-pressed', soundEnabled ? 'true' : 'false');
+        soundEnabledBtn.setAttribute('aria-label', soundEnabled ? '關閉音效' : '開啟音效');
+        soundEnabledBtn.title = soundEnabled ? '關閉音效' : '開啟音效';
+        soundEnabledBtn.classList.toggle('is-muted', !soundEnabled);
     }
 
     function getMobileSoundPattern(type) {
@@ -758,6 +855,8 @@
         view.setUint32(40, sampleCount * 2, true);
 
         let peak = 0;
+        let activeEnergy = 0;
+        let activeSampleCount = 0;
         for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
             const absoluteTime = sampleIndex / sampleRate;
             let sample = 0;
@@ -779,11 +878,19 @@
             });
 
             samples[sampleIndex] = sample;
-            peak = Math.max(peak, Math.abs(sample));
+            const amplitude = Math.abs(sample);
+            peak = Math.max(peak, amplitude);
+            if (amplitude > 0.001) {
+                activeEnergy += sample * sample;
+                activeSampleCount++;
+            }
         }
 
-        // 將每一種提示音正規化到相同峰值，避免切換音效後忽大忽小。
-        const normalizationGain = peak > 0 ? 0.92 / peak : 1;
+        // 同時校正峰值與有效訊號的平均音量，避免某些音效在特定音量下聽不清楚。
+        const activeRms = activeSampleCount > 0 ? Math.sqrt(activeEnergy / activeSampleCount) : 0;
+        const peakGain = peak > 0 ? 0.92 / peak : 1;
+        const rmsGain = activeRms > 0 ? 0.24 / activeRms : 1;
+        const normalizationGain = Math.min(peakGain, rmsGain);
         for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
             const normalized = Math.max(-1, Math.min(1, samples[sampleIndex] * normalizationGain));
             view.setInt16(44 + sampleIndex * 2, normalized * 0x7fff, true);
@@ -819,7 +926,7 @@
     }
 
     async function playMobileAlarm(previewDuration = 0) {
-        if (!prepareMobileAlarm() || volumeLevel <= 0) return false;
+        if (!soundEnabled || !prepareMobileAlarm()) return false;
 
         try {
             if (mobilePreviewTimeout) {
@@ -844,6 +951,34 @@
             return true;
         } catch (error) {
             console.error('Mobile audio playback error:', error);
+            return false;
+        }
+    }
+
+    async function unlockMobileAudio() {
+        if (!soundEnabled) return true;
+        if (!prepareMobileAlarm()) return false;
+
+        try {
+            if (mobilePreviewTimeout) {
+                clearTimeout(mobilePreviewTimeout);
+                mobilePreviewTimeout = null;
+            }
+            mobileAlarmAudio.pause();
+            mobileAlarmAudio.currentTime = 0;
+            mobileAlarmAudio.muted = true;
+            mobileAlarmAudio.volume = 0;
+            await mobileAlarmAudio.play();
+            await new Promise(resolve => setTimeout(resolve, 80));
+            mobileAlarmAudio.pause();
+            mobileAlarmAudio.currentTime = 0;
+            mobileAlarmAudio.muted = false;
+            mobileAlarmAudio.volume = volumeLevel;
+            return true;
+        } catch (error) {
+            console.error('Mobile audio unlock error:', error);
+            mobileAlarmAudio.muted = false;
+            mobileAlarmAudio.volume = volumeLevel;
             return false;
         }
     }
@@ -889,8 +1024,8 @@
         const previewDuration = options.previewDuration || 0;
         const announce = options.announce === true;
         try {
-            if (volumeLevel <= 0) {
-                if (announce) showAudioStatus('🔇 目前為靜音，請先提高音量', true);
+            if (!soundEnabled) {
+                if (announce) showAudioStatus('音效已關閉，點右側喇叭按鈕可開啟');
                 return false;
             }
 
@@ -899,7 +1034,7 @@
                 const played = await playMobileAlarm(previewDuration);
                 if (announce) {
                     showAudioStatus(
-                        played ? '🔊 聲音已啟用' : '無法播放，請提高媒體音量後再試一次',
+                        played ? '音效已開啟，正在完整播放' : '無法播放，請提高媒體音量後再試一次',
                         !played
                     );
                 }
@@ -1008,7 +1143,7 @@
                     o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now + 3.5);
                 });
             }
-            if (announce) showAudioStatus('🔊 聲音已啟用');
+            if (announce) showAudioStatus('音效已開啟，正在完整播放');
             return true;
         } catch (e) {
             console.error("Audio trigger exception:", e);
@@ -1260,25 +1395,49 @@
         let nextIndex = (keys.indexOf(soundType) + 1) % keys.length;
         soundType = keys[nextIndex];
         if (soundToggleBtn) soundToggleBtn.textContent = soundNames[soundType];
-        await triggerChime({ previewDuration: 0, announce: true });
+        if (soundEnabled) {
+            await triggerChime({ previewDuration: 0, announce: true });
+        } else {
+            showAudioStatus(`已選擇 ${soundNames[soundType]}，音效目前關閉`);
+        }
     });
 
     safeBind('vol-up', 'click', async (e) => {
         e.stopPropagation();
-        if (volumeLevel < 1.0) {
-            volumeLevel = Math.min(1.0, volumeLevel + 0.1);
-            if (volText) volText.textContent = `Vol: ${Math.round(volumeLevel * 100)}%`;
-            await triggerChime({ previewDuration: isAppleTouchDevice ? 500 : 0, announce: true });
+        if (volumePercent < 100) {
+            setVolumePercent(volumePercent + 10);
+            if (soundEnabled) await triggerChime({ previewDuration: 0, announce: true });
         }
     });
 
     safeBind('vol-down', 'click', async (e) => {
         e.stopPropagation();
-        if (volumeLevel > 0.0) {
-            volumeLevel = Math.max(0.0, volumeLevel - 0.1);
-            if (volText) volText.textContent = volumeLevel <= 0 ? "Vol: MUTE" : `Vol: ${Math.round(volumeLevel * 100)}%`;
-            await triggerChime({ previewDuration: isAppleTouchDevice ? 500 : 0, announce: true });
+        if (volumePercent > 10) {
+            setVolumePercent(volumePercent - 10);
+            if (soundEnabled) await triggerChime({ previewDuration: 0, announce: true });
         }
+    });
+
+    safeBind('sound-enabled', 'click', async (e) => {
+        e.stopPropagation();
+        soundEnabled = !soundEnabled;
+        updateSoundEnabledUI();
+
+        if (!soundEnabled) {
+            if (mobilePreviewTimeout) { clearTimeout(mobilePreviewTimeout); mobilePreviewTimeout = null; }
+            if (mobileAlarmAudio) {
+                mobileAlarmAudio.pause();
+                mobileAlarmAudio.currentTime = 0;
+            }
+            if (audioCtx) {
+                audioCtx.close().catch(() => {});
+                audioCtx = null;
+            }
+            showAudioStatus('音效已關閉；時間到仍會閃爍提醒');
+            return;
+        }
+
+        await triggerChime({ previewDuration: 0, announce: true });
     });
 
     document.querySelectorAll('.btn-theme-dot').forEach(btn => {
@@ -1301,11 +1460,14 @@
         if (isRinging) { handleDismiss(); return; }
 
         requestWakeLock();
-        if (isAppleTouchDevice) {
-            await triggerChime({ previewDuration: 180, announce: true });
+        if (!soundEnabled) {
+            showAudioStatus('音效已關閉；時間到仍會閃爍提醒');
+        } else if (isAppleTouchDevice) {
+            const ready = await unlockMobileAudio();
+            showAudioStatus(ready ? '音效已準備完成' : '無法啟用音效，請再點一次開始', !ready);
         } else {
             const ready = await initAudio();
-            showAudioStatus(ready ? '🔊 聲音已啟用' : '無法啟用聲音，請再點一次開始', !ready);
+            showAudioStatus(ready ? '音效已準備完成' : '無法啟用音效，請再點一次開始', !ready);
         }
         
         if (timerId === null && timeLeft > 0) {
@@ -1362,6 +1524,8 @@
         }
     });
 
+    updateVolumeDisplay();
+    updateSoundEnabledUI();
     updateDisplay();
 </script>
 </body>
