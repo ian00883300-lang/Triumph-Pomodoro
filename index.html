@@ -251,8 +251,11 @@
 
         .status-indicator.time-up-alert {
             color: #e11d48;
+            font-size: 1.56rem;
+            line-height: 1.2;
             font-weight: 900;
             letter-spacing: 0.16em;
+            margin-bottom: 8px;
             animation: time-up-flash 0.72s steps(2, end) infinite;
         }
 
@@ -350,8 +353,8 @@
             opacity: 0.8;
         }
 
-        /* iPhone 與小尺寸行動裝置 */
-        @media (max-width: 480px) {
+        /* iPhone 與較窄的 iPad 分割畫面 */
+        @media (max-width: 599px) {
             body {
                 align-items: flex-start;
                 padding:
@@ -472,11 +475,47 @@
             .round-count { min-width: 46px; }
         }
 
-        /* iPad 與較寬平板 */
-        @media (min-width: 768px) {
+        /* iPad（含分割畫面與幕前調度）：沿用 iPhone 的分列排列並放大觸控區 */
+        @media (min-width: 600px) and (max-width: 1024px) {
             .wrapper {
-                width: 430px;
-                padding: 40px 46px;
+                width: min(92vw, 560px);
+                padding: 42px 46px;
+            }
+
+            .control-panel {
+                gap: 14px;
+                margin-bottom: 24px;
+                padding-bottom: 20px;
+            }
+
+            .panel-row {
+                width: 100%;
+                gap: 12px;
+            }
+
+            .audio-settings {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 48px auto 48px 48px;
+                align-items: center;
+                width: 100%;
+                gap: 10px;
+            }
+
+            .panel-row.utility-row {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 14px;
+            }
+
+            .utility-row .loop-settings {
+                display: grid;
+                grid-template-columns: auto 44px minmax(74px, auto) 44px;
+                gap: 8px;
+                white-space: nowrap;
+            }
+
+            .utility-row .theme-selector {
+                gap: 8px;
             }
 
             .btn-action,
@@ -484,7 +523,47 @@
             .btn-tab,
             .btn-mini,
             .btn-theme-dot {
-                min-height: 44px;
+                min-height: 48px;
+            }
+
+            .btn-mini,
+            .btn-theme-dot {
+                min-width: 44px;
+                padding: 8px 10px;
+                font-size: 0.84rem;
+            }
+
+            .btn-tab {
+                padding: 10px 8px;
+                font-size: 0.88rem;
+            }
+
+            .adjust-container {
+                gap: 12px;
+                margin-bottom: 30px;
+            }
+
+            .btn-time {
+                min-height: 52px;
+                padding: 10px 8px;
+                font-size: 0.92rem;
+            }
+
+            .time-display {
+                font-size: 6.6rem;
+            }
+
+            .control-container {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .btn-action {
+                width: 100%;
+                min-width: 0;
+                min-height: 52px;
+                padding: 12px 10px;
             }
         }
 
