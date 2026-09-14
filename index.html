@@ -658,7 +658,9 @@
     
     let timerId = null;
     let audioCtx = null;
+    let masterGain = null;
     let mobileAlarmAudio = null;
+    let mobileMediaSource = null;
     let mobileAlarmUrl = null;
     let mobileAlarmSoundType = null;
     let mobilePreviewTimeout = null;
@@ -820,9 +822,30 @@
         audioStatus.classList.toggle('error', isError);
     }
 
+    // 使用音訊增益器控制網站內音量。iOS 會忽略 HTMLMediaElement.volume，
+    // 因此不能只修改 <audio> 元素的 volume 屬性。
+    function getVolumeGain() {
+        const normalized = volumePercent / 100;
+        return normalized * normalized;
+    }
+
+    function syncMasterGain(immediate = false) {
+        if (!audioCtx || !masterGain) return;
+        const now = audioCtx.currentTime;
+        const targetGain = soundEnabled ? getVolumeGain() : 0;
+        masterGain.gain.cancelScheduledValues(now);
+        if (immediate) {
+            masterGain.gain.setValueAtTime(targetGain, now);
+        } else {
+            masterGain.gain.setTargetAtTime(targetGain, now, 0.015);
+        }
+    }
+
     function updateVolumeDisplay() {
         if (volText) volText.textContent = `Vol: ${volumePercent}%`;
-        if (mobileAlarmAudio) mobileAlarmAudio.volume = volumeLevel;
+        // 媒體元素維持滿音量，再由 masterGain 做跨 iPhone／iPad 一致的調整。
+        if (mobileAlarmAudio) mobileAlarmAudio.volume = 1;
+        syncMasterGain();
     }
 
     function setVolumePercent(nextPercent) {
@@ -1000,14 +1023,37 @@
             mobileAlarmAudio.load();
         }
 
-        mobileAlarmAudio.volume = volumeLevel;
+        mobileAlarmAudio.volume = 1;
         return true;
+    }
+
+    async function ensureMobileAudioGraph() {
+        const ready = await initAudio();
+        if (!ready || !audioCtx || !masterGain || !mobileAlarmAudio) return false;
+
+        try {
+            if (!mobileMediaSource) {
+                mobileMediaSource = audioCtx.createMediaElementSource(mobileAlarmAudio);
+                mobileMediaSource.connect(masterGain);
+            }
+            mobileAlarmAudio.volume = 1;
+            syncMasterGain(true);
+            return true;
+        } catch (error) {
+            console.error('Mobile audio gain setup error:', error);
+            return false;
+        }
     }
 
     async function playMobileAlarm(previewDuration = 0) {
         if (!soundEnabled || !prepareMobileAlarm()) return false;
 
         try {
+            const gainReady = await ensureMobileAudioGraph();
+            if (!gainReady) {
+                // 舊版瀏覽器的備援；iOS 新版會走上方 Web Audio 增益路徑。
+                mobileAlarmAudio.volume = volumeLevel;
+            }
             if (mobilePreviewTimeout) {
                 clearTimeout(mobilePreviewTimeout);
                 mobilePreviewTimeout = null;
@@ -1015,7 +1061,7 @@
             mobileAlarmAudio.pause();
             mobileAlarmAudio.currentTime = 0;
             mobileAlarmAudio.muted = false;
-            mobileAlarmAudio.volume = volumeLevel;
+            if (gainReady) mobileAlarmAudio.volume = 1;
             await mobileAlarmAudio.play();
 
             if (previewDuration > 0) {
@@ -1039,6 +1085,8 @@
         if (!prepareMobileAlarm()) return false;
 
         try {
+            const gainReady = await ensureMobileAudioGraph();
+            if (!gainReady) return false;
             if (mobilePreviewTimeout) {
                 clearTimeout(mobilePreviewTimeout);
                 mobilePreviewTimeout = null;
@@ -1052,12 +1100,13 @@
             mobileAlarmAudio.pause();
             mobileAlarmAudio.currentTime = 0;
             mobileAlarmAudio.muted = false;
-            mobileAlarmAudio.volume = volumeLevel;
+            mobileAlarmAudio.volume = 1;
+            syncMasterGain(true);
             return true;
         } catch (error) {
             console.error('Mobile audio unlock error:', error);
             mobileAlarmAudio.muted = false;
-            mobileAlarmAudio.volume = volumeLevel;
+            mobileAlarmAudio.volume = 1;
             return false;
         }
     }
@@ -1084,14 +1133,18 @@
     async function initAudio() {
         try {
             if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
-            if (!audioCtx) {
+            if (!audioCtx || audioCtx.state === 'closed') {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextClass) return false;
                 audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+                masterGain = audioCtx.createGain();
+                masterGain.connect(audioCtx.destination);
+                mobileMediaSource = null;
             }
             if (audioCtx && audioCtx.state !== 'running') {
                 await audioCtx.resume();
             }
+            syncMasterGain(true);
             return audioCtx && audioCtx.state === 'running';
         } catch (e) {
             console.error("Audio system init error:", e);
@@ -1485,7 +1538,13 @@
         e.stopPropagation();
         if (volumePercent < 100) {
             setVolumePercent(volumePercent + 10);
-            if (soundEnabled) await triggerChime({ previewDuration: 0, announce: true });
+            if (soundEnabled) {
+                const played = await triggerChime({ previewDuration: 0, announce: false });
+                showAudioStatus(
+                    played ? `網頁音量已調整為 ${volumePercent}%` : '無法播放，請確認裝置媒體音量',
+                    !played
+                );
+            }
         }
     });
 
@@ -1493,7 +1552,13 @@
         e.stopPropagation();
         if (volumePercent > 10) {
             setVolumePercent(volumePercent - 10);
-            if (soundEnabled) await triggerChime({ previewDuration: 0, announce: true });
+            if (soundEnabled) {
+                const played = await triggerChime({ previewDuration: 0, announce: false });
+                showAudioStatus(
+                    played ? `網頁音量已調整為 ${volumePercent}%` : '無法播放，請確認裝置媒體音量',
+                    !played
+                );
+            }
         }
     });
 
@@ -1503,15 +1568,13 @@
         updateSoundEnabledUI();
 
         if (!soundEnabled) {
+            syncMasterGain(true);
             if (mobilePreviewTimeout) { clearTimeout(mobilePreviewTimeout); mobilePreviewTimeout = null; }
             if (mobileAlarmAudio) {
                 mobileAlarmAudio.pause();
                 mobileAlarmAudio.currentTime = 0;
             }
-            if (audioCtx) {
-                audioCtx.close().catch(() => {});
-                audioCtx = null;
-            }
+            if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
             showAudioStatus('音效已關閉；時間到仍會閃爍提醒');
             return;
         }
